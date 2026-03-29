@@ -1,4 +1,5 @@
 import random
+from pathlib import Path
 from torch.utils.data import DataLoader, ConcatDataset
 from src.common.dataset import (
     PlantDiseaseDataset,
@@ -12,6 +13,10 @@ from src.common.dataset import (
 def list_files_by_class(root_dir, ext_patterns=("*.jpg", "*.jpeg", "*.png")):
     classes = []
     samples = []
+
+    if not root_dir.exists():
+        print(f"Directory not found: {root_dir}. Treating as empty dataset.")
+        return classes, samples
 
     for class_dir in sorted(root_dir.iterdir()):
         if not class_dir.is_dir():
@@ -49,6 +54,24 @@ def split_samples(samples, train_frac=0.8, val_frac=0.1, test_frac=0.1, seed=42)
     return train, val, test
 
 
+def write_split_file(split_path, samples):
+    split_path.parent.mkdir(parents=True, exist_ok=True)
+    with split_path.open("w", encoding="utf-8") as f:
+        for image_path, label_name in samples:
+            f.write(f"{image_path}\t{label_name}\n")
+
+    print(f"Wrote {len(samples)} samples to {split_path}")
+
+
+def save_splits(train_samples, val_samples, test_samples, output_dir=None):
+    if output_dir is None:
+        output_dir = Path(__file__).resolve().parents[2] / "data" / "splits"
+
+    write_split_file(output_dir / "train.txt", train_samples)
+    write_split_file(output_dir / "val.txt", val_samples)
+    write_split_file(output_dir / "test.txt", test_samples)
+
+
 def create_dataloaders(batch_size=32, num_workers=4):
     # scan datasets once
     pv_classes, pv_samples = list_files_by_class(PLANTVILLAGE_DIR)
@@ -82,16 +105,31 @@ def create_dataloaders(batch_size=32, num_workers=4):
         "test": DataLoader(pv_test_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers),
     }
 
-    pd_loaders = {
-        "train": DataLoader(pd_train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers),
-        "val": DataLoader(pd_val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers),
-        "test": DataLoader(pd_test_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers),
-    }
+    pd_loaders = None
+    if len(pd_train_ds) > 0 and len(pd_val_ds) > 0 and len(pd_test_ds) > 0:
+        pd_loaders = {
+            "train": DataLoader(pd_train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers),
+            "val": DataLoader(pd_val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers),
+            "test": DataLoader(pd_test_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers),
+        }
+    else:
+        print("PlantDoc dataset is empty or incomplete. Skipping PlantDoc loaders.")
 
     # combined datasets
-    combined_train_ds = ConcatDataset([pv_train_ds, pd_train_ds])
-    combined_val_ds = ConcatDataset([pv_val_ds, pd_val_ds])
-    combined_test_ds = ConcatDataset([pv_test_ds, pd_test_ds])
+    train_datasets = [pv_train_ds]
+    val_datasets = [pv_val_ds]
+    test_datasets = [pv_test_ds]
+
+    if len(pd_train_ds) > 0:
+        train_datasets.append(pd_train_ds)
+    if len(pd_val_ds) > 0:
+        val_datasets.append(pd_val_ds)
+    if len(pd_test_ds) > 0:
+        test_datasets.append(pd_test_ds)
+
+    combined_train_ds = train_datasets[0] if len(train_datasets) == 1 else ConcatDataset(train_datasets)
+    combined_val_ds = val_datasets[0] if len(val_datasets) == 1 else ConcatDataset(val_datasets)
+    combined_test_ds = test_datasets[0] if len(test_datasets) == 1 else ConcatDataset(test_datasets)
 
     combined_loaders = {
         "train": DataLoader(combined_train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers),
@@ -105,3 +143,30 @@ def create_dataloaders(batch_size=32, num_workers=4):
         "combined": combined_loaders,
         "label2idx": label2idx,
     }
+
+
+def create_and_save_splits():
+    pv_classes, pv_samples = list_files_by_class(PLANTVILLAGE_DIR)
+    pd_train_classes, pd_train_samples = list_files_by_class(PLANTDOC_TRAIN_DIR)
+    pd_test_classes, pd_test_samples = list_files_by_class(PLANTDOC_TEST_DIR)
+
+    _all_labels = sorted(set(pv_classes) | set(pd_train_classes) | set(pd_test_classes))
+
+    pv_train_samples, pv_val_samples, pv_test_samples = split_samples(pv_samples, 0.8, 0.1, 0.1)
+    pd_train_split, pd_val_split, _ = split_samples(pd_train_samples, 0.8, 0.1, 0.1)
+
+    combined_train_samples = pv_train_samples + pd_train_split
+    combined_val_samples = pv_val_samples + pd_val_split
+    combined_test_samples = pv_test_samples + pd_test_samples
+
+    save_splits(combined_train_samples, combined_val_samples, combined_test_samples)
+
+    return {
+        "train": combined_train_samples,
+        "val": combined_val_samples,
+        "test": combined_test_samples,
+    }
+
+
+if __name__ == "__main__":
+    create_and_save_splits()
