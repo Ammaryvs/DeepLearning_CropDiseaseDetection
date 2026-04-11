@@ -1,0 +1,50 @@
+# VGG16 Training Configuration
+# Classic, powerful CNN model
+
+model:
+  model_name: vgg16
+  num_classes: 26
+  input_size: 224
+  pretrained: true
+  freeze_backbone: false
+  dropout_rate: 0.5
+
+training:
+  epochs: 100
+  batch_size: 32
+  learning_rate: 0.0001
+  weight_decay: 0.0005
+  momentum: 0.9
+  optimizer: sgd
+  scheduler: step
+  scheduler_step_size: 15
+  scheduler_gamma: 0.5
+  early_stopping_patience: 15
+  early_stopping_metric: val_accuracy
+
+data:
+  data_path: ../../../PlantVillage-Dataset/raw/segmented
+  train_path: ../../../PlantVillage-Dataset/raw/segmented/train
+  val_path: ../../../PlantVillage-Dataset/raw/segmented/val
+  test_path: ../../../PlantVillage-Dataset/raw/segmented/test
+  num_workers: 4
+  pin_memory: true
+  shuffle: true
+  augmentation: true
+  augmentation_strength: 0.5
+  validation_split: 0.2
+  random_seed: 42
+
+device:
+  device: cuda
+  multi_gpu: false
+  gpu_ids: [0]
+  mixed_precision: false
+
+checkpoint:
+  checkpoint_dir: ./checkpoints/vgg16
+  save_frequency: 5
+  save_best_only: true
+  best_model_metric: val_accuracy
+  log_dir: ./logs/vgg16
+  log_frequency: 50

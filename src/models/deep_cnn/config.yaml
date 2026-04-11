@@ -1,0 +1,50 @@
+# DeepCNN Training Configuration
+# Deeper CNN model with more parameters and capacity
+
+model:
+  model_name: deep_cnn
+  num_classes: 26
+  input_size: 224
+  pretrained: false
+  freeze_backbone: false
+  dropout_rate: 0.35
+
+training:
+  epochs: 80
+  batch_size: 32
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  momentum: 0.9
+  optimizer: adam
+  scheduler: cosine
+  scheduler_step_size: 10
+  scheduler_gamma: 0.1
+  early_stopping_patience: 12
+  early_stopping_metric: val_accuracy
+
+data:
+  data_path: ../../../PlantVillage-Dataset/raw/segmented
+  train_path: ../../../PlantVillage-Dataset/raw/segmented/train
+  val_path: ../../../PlantVillage-Dataset/raw/segmented/val
+  test_path: ../../../PlantVillage-Dataset/raw/segmented/test
+  num_workers: 4
+  pin_memory: true
+  shuffle: true
+  augmentation: true
+  augmentation_strength: 0.4
+  validation_split: 0.2
+  random_seed: 42
+
+device:
+  device: cuda
+  multi_gpu: false
+  gpu_ids: [0]
+  mixed_precision: true
+
+checkpoint:
+  checkpoint_dir: ./checkpoints/deep_cnn
+  save_frequency: 5
+  save_best_only: true
+  best_model_metric: val_accuracy
+  log_dir: ./logs/deep_cnn
+  log_frequency: 50
