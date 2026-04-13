@@ -7,8 +7,6 @@ from pathlib import Path
 
 # Load datasets
 PLANTVILLAGE_DIR = Path("../PlantVillage-Dataset/raw/color")
-PLANTDOC_TRAIN_DIR = Path("../PlantDoc-Dataset/train")
-PLANTDOC_TEST_DIR = Path("../PlantDoc-Dataset/test")
 
 class PlantDiseaseDataset(Dataset):
     def __init__(self, samples, label2idx, transform=None):
