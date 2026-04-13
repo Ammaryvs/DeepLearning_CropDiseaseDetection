@@ -1,0 +1,11 @@
+seed: 42
+train_split: data/splits/train.txt
+val_split: data/splits/val.txt
+test_split: data/splits/test.txt
+image_height: 128
+image_width: 128
+batch_size: 32
+epochs: 15
+learning_rate: 0.001
+early_stopping_patience: 4
+output_dir: artifacts/simple_cnn
