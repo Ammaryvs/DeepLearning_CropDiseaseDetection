@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR, ExponentialLR
-from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast, GradScaler
 import torchvision.models as models
 from torchvision import transforms
 from pathlib import Path
@@ -22,8 +22,12 @@ import sys
 import os
 
 # Import configuration system
-sys.path.insert(0, '../../')
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 from common.config import FullConfig, validate_config
+from common.dataloader import create_plantvillage_dataloaders
+from common.metrics import MetricTracker, batch_accuracy, classification_metrics
+from common.seed import set_seed
+from common.utils import EarlyStopping, History, save_checkpoint as save_training_checkpoint
 
 
 # ============================================================================
@@ -43,7 +47,8 @@ def setup_logging(config: FullConfig):
         handlers=[
             logging.FileHandler(log_file),
             logging.StreamHandler()
-        ]
+        ],
+        force=True,
     )
     
     logger = logging.getLogger(__name__)
@@ -148,39 +153,33 @@ def create_data_transforms(config: FullConfig, is_train: bool = True):
     return transforms.Compose(transforms_list)
 
 
-def create_dataloaders(config: FullConfig):
-    """Create train and validation dataloaders."""
-    from torchvision.datasets import ImageFolder
-    
+def create_dataloaders(config: FullConfig, seed: int = 42):
+    """Create train/validation dataloaders and return dataset metadata."""
     train_transform = create_data_transforms(config, is_train=True)
     val_transform = create_data_transforms(config, is_train=False)
-    
-    # Load datasets
-    train_dataset = ImageFolder(config.data.train_path, transform=train_transform)
-    val_dataset = ImageFolder(config.data.val_path, transform=val_transform)
-    
-    logging.info(f"Train dataset: {len(train_dataset)} images")
-    logging.info(f"Validation dataset: {len(val_dataset)} images")
-    
-    # Create dataloaders
-    train_loader = DataLoader(
-        train_dataset,
+    data_bundle = create_plantvillage_dataloaders(
+        root_dir=config.data.data_path,
         batch_size=config.training.batch_size,
-        shuffle=config.data.shuffle,
         num_workers=config.data.num_workers,
         pin_memory=config.data.pin_memory,
-        drop_last=True
+        shuffle=config.data.shuffle,
+        seed=seed,
+        train_frac=config.data.train_split,
+        val_frac=config.data.val_split,
+        test_frac=config.data.test_split,
+        train_tfms=train_transform,
+        val_tfms=val_transform,
     )
-    
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=config.training.batch_size,
-        shuffle=False,
-        num_workers=config.data.num_workers,
-        pin_memory=config.data.pin_memory
+
+    logging.info(f"Dataset root: {data_bundle['root_dir']}")
+    logging.info(
+        "Dataset split sizes - "
+        f"train: {data_bundle['split_sizes']['train']} | "
+        f"val: {data_bundle['split_sizes']['val']} | "
+        f"test: {data_bundle['split_sizes']['test']}"
     )
-    
-    return train_loader, val_loader
+
+    return data_bundle
 
 
 # ============================================================================
@@ -264,13 +263,13 @@ def train_epoch(
     config: FullConfig,
     epoch: int,
     scaler: GradScaler = None
-) -> tuple:
+) -> dict:
     """Train for one epoch."""
     
     model.train()
-    total_loss = 0.0
-    total_correct = 0
-    total_samples = 0
+    metrics = MetricTracker(("loss", "accuracy"))
+    all_predictions = []
+    all_targets = []
     
     pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{config.training.epochs}")
     
@@ -282,7 +281,7 @@ def train_epoch(
         
         # Mixed precision training if enabled
         if config.device.mixed_precision and scaler is not None:
-            with autocast():
+            with autocast('cuda'):
                 outputs = model(images)
                 loss = criterion(outputs, labels)
             
@@ -295,22 +294,40 @@ def train_epoch(
             loss.backward()
             optimizer.step()
         
-        # Calculate metrics
-        total_loss += loss.item() * images.size(0)
-        _, predicted = torch.max(outputs.data, 1)
-        total_correct += (predicted == labels).sum().item()
-        total_samples += labels.size(0)
+        batch_size = labels.size(0)
+        detached_outputs = outputs.detach()
+        predictions = detached_outputs.argmax(dim=1)
+
+        metrics.update("loss", loss.item(), n=batch_size)
+        metrics.update("accuracy", batch_accuracy(detached_outputs, labels), n=batch_size)
+        all_predictions.extend(predictions.cpu().tolist())
+        all_targets.extend(labels.detach().cpu().tolist())
         
         # Log progress
         if (batch_idx + 1) % config.checkpoint.log_frequency == 0:
-            avg_loss = total_loss / total_samples
-            accuracy = total_correct / total_samples
-            pbar.set_postfix({'loss': f'{avg_loss:.4f}', 'acc': f'{accuracy:.4f}'})
+            current_metrics = metrics.result()
+            pbar.set_postfix({
+                'loss': f"{current_metrics['loss']:.4f}",
+                'acc': f"{current_metrics['accuracy']:.4f}",
+            })
     
-    epoch_loss = total_loss / total_samples
-    epoch_accuracy = total_correct / total_samples
-    
-    return epoch_loss, epoch_accuracy
+    epoch_metrics = metrics.result()
+    classification_summary = classification_metrics(
+        predictions=all_predictions,
+        targets=all_targets,
+        num_classes=config.model.num_classes,
+    )
+
+    return {
+        "loss": epoch_metrics["loss"],
+        "accuracy": epoch_metrics["accuracy"],
+        "precision": classification_summary["macro_precision"],
+        "recall": classification_summary["macro_recall"],
+        "f1": classification_summary["macro_f1"],
+        "weighted_precision": classification_summary["weighted_precision"],
+        "weighted_recall": classification_summary["weighted_recall"],
+        "weighted_f1": classification_summary["weighted_f1"],
+    }
 
 
 def validate(
@@ -318,14 +335,15 @@ def validate(
     val_loader: DataLoader,
     criterion: nn.Module,
     device: torch.device,
+    config: FullConfig,
     scaler: GradScaler = None
-) -> tuple:
+) -> dict:
     """Validate the model."""
     
     model.eval()
-    total_loss = 0.0
-    total_correct = 0
-    total_samples = 0
+    metrics = MetricTracker(("loss", "accuracy"))
+    all_predictions = []
+    all_targets = []
     
     with torch.no_grad():
         for images, labels in tqdm(val_loader, desc="Validating"):
@@ -333,69 +351,50 @@ def validate(
             labels = labels.to(device)
             
             if scaler is not None:
-                with autocast():
+                with autocast('cuda'):
                     outputs = model(images)
                     loss = criterion(outputs, labels)
             else:
                 outputs = model(images)
                 loss = criterion(outputs, labels)
             
-            total_loss += loss.item() * images.size(0)
-            _, predicted = torch.max(outputs.data, 1)
-            total_correct += (predicted == labels).sum().item()
-            total_samples += labels.size(0)
-    
-    val_loss = total_loss / total_samples
-    val_accuracy = total_correct / total_samples
-    
-    return val_loss, val_accuracy
+            batch_size = labels.size(0)
+            detached_outputs = outputs.detach()
+            predictions = detached_outputs.argmax(dim=1)
 
+            metrics.update("loss", loss.item(), n=batch_size)
+            metrics.update("accuracy", batch_accuracy(detached_outputs, labels), n=batch_size)
+            all_predictions.extend(predictions.cpu().tolist())
+            all_targets.extend(labels.detach().cpu().tolist())
+    
+    val_metrics = metrics.result()
+    classification_summary = classification_metrics(
+        predictions=all_predictions,
+        targets=all_targets,
+        num_classes=config.model.num_classes,
+    )
 
-# ============================================================================
-# CHECKPOINT MANAGEMENT
-# ============================================================================
-def save_checkpoint(
-    model: nn.Module,
-    optimizer: optim.Optimizer,
-    epoch: int,
-    metrics: dict,
-    config: FullConfig,
-    is_best: bool = False
-):
-    """Save model checkpoint."""
-    
-    checkpoint_dir = Path(config.checkpoint.checkpoint_dir)
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    
-    checkpoint = {
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'metrics': metrics,
-        'config': config.to_dict()
+    return {
+        "loss": val_metrics["loss"],
+        "accuracy": val_metrics["accuracy"],
+        "precision": classification_summary["macro_precision"],
+        "recall": classification_summary["macro_recall"],
+        "f1": classification_summary["macro_f1"],
+        "weighted_precision": classification_summary["weighted_precision"],
+        "weighted_recall": classification_summary["weighted_recall"],
+        "weighted_f1": classification_summary["weighted_f1"],
     }
-    
-    # Regular checkpoint
-    filename = checkpoint_dir / f"checkpoint_epoch_{epoch:03d}.pt"
-    torch.save(checkpoint, filename)
-    
-    # Best checkpoint
-    if is_best:
-        best_filename = checkpoint_dir / "best_model.pt"
-        torch.save(checkpoint, best_filename)
-        logging.info(f"Best model saved: {best_filename}")
-    else:
-        logging.info(f"Checkpoint saved: {filename}")
 
 
 # ============================================================================
 # MAIN TRAINING FUNCTION
 # ============================================================================
-def train(config_path: str = "config.yaml"):
+def train(config_path: str = "config.yaml", config: FullConfig = None, run_name: str | None = None):
     """Main training function."""
     
     # Load configuration
-    config = FullConfig.from_yaml(config_path)
+    config = config or FullConfig.from_yaml(config_path)
+    config.data.random_seed = 42
     
     # Validate configuration
     if not validate_config(config):
@@ -404,6 +403,9 @@ def train(config_path: str = "config.yaml"):
     
     # Setup
     logger = setup_logging(config)
+    seed = 42
+    set_seed(seed)
+    logging.info(f"Random seed set to {seed}")
     device = setup_device(config)
     
     logging.info("=" * 70)
@@ -411,11 +413,22 @@ def train(config_path: str = "config.yaml"):
     logging.info("=" * 70)
     logging.info(str(config))
     
-    # Create model
-    model = create_vit_model(config, device)
-    
     # Create dataloaders
-    train_loader, val_loader = create_dataloaders(config)
+    data_bundle = create_dataloaders(config, seed=seed)
+    inferred_num_classes = data_bundle["num_classes"]
+    if config.model.num_classes != inferred_num_classes:
+        logging.warning(
+            "Config num_classes=%s does not match dataset classes=%s. Updating model config to match dataset.",
+            config.model.num_classes,
+            inferred_num_classes,
+        )
+        config.model.num_classes = inferred_num_classes
+
+    train_loader = data_bundle["loaders"]["train"]
+    val_loader = data_bundle["loaders"]["val"]
+
+    # Create model after class count is confirmed
+    model = create_vit_model(config, device)
     
     # Loss function
     criterion = nn.CrossEntropyLoss()
@@ -425,21 +438,26 @@ def train(config_path: str = "config.yaml"):
     scheduler = create_scheduler(config, optimizer, len(train_loader))
     
     # Mixed precision scaler
-    scaler = GradScaler() if config.device.mixed_precision else None
+    scaler = GradScaler('cuda') if config.device.mixed_precision else None
     
     # Training loop
     best_val_accuracy = 0.0
-    patience_counter = 0
-    training_history = {'train_loss': [], 'train_acc': [], 'val_loss': [], 'val_acc': []}
+    best_epoch = 0
+    best_metrics = None
+    early_stopping = EarlyStopping(
+        patience=config.training.early_stopping_patience,
+        mode="max" if config.training.early_stopping_metric == "val_accuracy" else "min",
+    )
+    training_history = History()
     
     for epoch in range(config.training.epochs):
         # Train
-        train_loss, train_acc = train_epoch(
+        train_metrics = train_epoch(
             model, train_loader, criterion, optimizer, device, config, epoch, scaler
         )
         
         # Validate
-        val_loss, val_acc = validate(model, val_loader, criterion, device, scaler)
+        val_metrics = validate(model, val_loader, criterion, device, config, scaler)
         
         # Update scheduler
         if scheduler is not None:
@@ -447,58 +465,131 @@ def train(config_path: str = "config.yaml"):
         
         # Log metrics
         logging.info(f"Epoch {epoch+1}/{config.training.epochs} - "
-                    f"Loss: {train_loss:.4f} | Acc: {train_acc:.4f} | "
-                    f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
+                    f"Loss: {train_metrics['loss']:.4f} | Acc: {train_metrics['accuracy']:.4f} | "
+                    f"Val Loss: {val_metrics['loss']:.4f} | Val Acc: {val_metrics['accuracy']:.4f} | "
+                    f"Val Precision: {val_metrics['precision']:.4f} | Val Recall: {val_metrics['recall']:.4f}")
         
-        training_history['train_loss'].append(train_loss)
-        training_history['train_acc'].append(train_acc)
-        training_history['val_loss'].append(val_loss)
-        training_history['val_acc'].append(val_acc)
+        training_history.update(
+            train_loss=train_metrics["loss"],
+            train_acc=train_metrics["accuracy"],
+            train_precision=train_metrics["precision"],
+            train_recall=train_metrics["recall"],
+            train_f1=train_metrics["f1"],
+            val_loss=val_metrics["loss"],
+            val_acc=val_metrics["accuracy"],
+            val_precision=val_metrics["precision"],
+            val_recall=val_metrics["recall"],
+            val_f1=val_metrics["f1"],
+        )
         
         # Determine if this is best epoch
         is_best = False
         if config.checkpoint.best_model_metric == "val_accuracy":
-            is_best = val_acc > best_val_accuracy
+            is_best = val_metrics["accuracy"] > best_val_accuracy
             if is_best:
-                best_val_accuracy = val_acc
-                patience_counter = 0
-            else:
-                patience_counter += 1
+                best_val_accuracy = val_metrics["accuracy"]
         else:
-            is_best = val_loss < training_history['val_loss'][0] if epoch > 0 else True
-            if is_best:
-                patience_counter = 0
-            else:
-                patience_counter += 1
+            previous_best = early_stopping.best_score
+            is_best = previous_best is None or val_metrics["loss"] < previous_best
+
+        if is_best:
+            best_epoch = epoch + 1
+            best_metrics = {
+                "train": dict(train_metrics),
+                "val": dict(val_metrics),
+            }
         
         # Save checkpoint
         if (epoch + 1) % config.checkpoint.save_frequency == 0 or is_best:
-            save_checkpoint(
-                model, optimizer, epoch,
-                {
-                    'train_loss': train_loss,
-                    'train_acc': train_acc,
-                    'val_loss': val_loss,
-                    'val_acc': val_acc
+            checkpoint_path = save_training_checkpoint(
+                state={
+                    'epoch': epoch + 1,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'scheduler_state_dict': scheduler.state_dict() if scheduler is not None else None,
+                    'metrics': {
+                        'train': train_metrics,
+                        'val': val_metrics,
+                    },
+                    'config': config.to_dict(),
+                    'seed': seed,
+                    'run_name': run_name,
                 },
-                config,
-                is_best=is_best
+                checkpoint_dir=config.checkpoint.checkpoint_dir,
+                filename=f"checkpoint_epoch_{epoch + 1:03d}.pt",
+                is_best=is_best,
             )
+            logging.info(f"Checkpoint saved: {checkpoint_path}")
+            if is_best:
+                logging.info(
+                    f"Best model updated: {Path(config.checkpoint.checkpoint_dir) / 'best_model.pt'}"
+                )
         
         # Early stopping
-        if patience_counter >= config.training.early_stopping_patience:
+        monitored_score = val_metrics["accuracy"] if early_stopping.mode == "max" else val_metrics["loss"]
+        early_stopping.step(monitored_score)
+        if early_stopping.should_stop:
             logging.info(f"Early stopping at epoch {epoch+1}")
             break
     
     # Save training history
     history_file = Path(config.checkpoint.log_dir) / "training_history.json"
-    with open(history_file, 'w') as f:
-        json.dump(training_history, f, indent=2)
+    training_history.save(history_file)
     logging.info(f"Training history saved: {history_file}")
     
     logging.info("=" * 70)
     logging.info("Training completed!")
     logging.info("=" * 70)
+
+    history_dict = training_history.to_dict()
+    final_metrics = {
+        "train": {
+            "loss": history_dict["train_loss"][-1],
+            "accuracy": history_dict["train_acc"][-1],
+            "precision": history_dict["train_precision"][-1],
+            "recall": history_dict["train_recall"][-1],
+            "f1": history_dict["train_f1"][-1],
+        },
+        "val": {
+            "loss": history_dict["val_loss"][-1],
+            "accuracy": history_dict["val_acc"][-1],
+            "precision": history_dict["val_precision"][-1],
+            "recall": history_dict["val_recall"][-1],
+            "f1": history_dict["val_f1"][-1],
+        },
+    }
+
+    if best_metrics is None:
+        best_epoch = len(history_dict["val_acc"])
+        best_metrics = final_metrics
+
+    return {
+        "run_name": run_name or Path(config_path).stem,
+        "seed": seed,
+        "stopped_epoch": len(history_dict["train_loss"]),
+        "best_epoch": best_epoch,
+        "best_metric_name": config.checkpoint.best_model_metric,
+        "parameters": {
+            "learning_rate": config.training.learning_rate,
+            "weight_decay": config.training.weight_decay,
+            "batch_size": config.training.batch_size,
+            "optimizer": config.training.optimizer,
+            "scheduler": config.training.scheduler,
+            "augmentation_strength": config.data.augmentation_strength,
+            "train_split": config.data.train_split,
+            "val_split": config.data.val_split,
+            "test_split": config.data.test_split,
+            "data_path": config.data.data_path,
+        },
+        "final_metrics": final_metrics,
+        "best_metrics": best_metrics,
+        "history": history_dict,
+        "artifacts": {
+            "checkpoint_dir": config.checkpoint.checkpoint_dir,
+            "log_dir": config.checkpoint.log_dir,
+            "history_file": str(history_file),
+        },
+    }
 
 
 if __name__ == "__main__":

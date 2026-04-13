@@ -3,17 +3,17 @@
 
 model:
   model_name: vit
-  num_classes: 26
+  num_classes: 38
   input_size: 224
   pretrained: true
   freeze_backbone: false
   dropout_rate: 0.1
 
 training:
-  epochs: 150
-  batch_size: 16
-  learning_rate: 0.0001          # Lower for transformers
-  weight_decay: 0.0001
+  epochs: 50
+  batch_size: 32
+  learning_rate: 0.001          # Test: 0.1, 0.01, 0.001
+  weight_decay: 0.01            # Recommended extra sweep for ViT: 0.01, 0.03, 0.05
   momentum: 0.9
   optimizer: adamw                # Recommended for ViT
   scheduler: cosine               # Cosine annealing works well with ViT
@@ -23,16 +23,15 @@ training:
   early_stopping_metric: val_accuracy
 
 data:
-  data_path: ../../../PlantVillage-Dataset/raw/segmented
-  train_path: ../../../PlantVillage-Dataset/raw/segmented/train
-  val_path: ../../../PlantVillage-Dataset/raw/segmented/val
-  test_path: ../../../PlantVillage-Dataset/raw/segmented/test
+  data_path: ../PlantVillage-Dataset/raw/color
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
   num_workers: 4
   pin_memory: true
   shuffle: true
   augmentation: true
   augmentation_strength: 0.5
-  validation_split: 0.15
   random_seed: 42
 
 device:
