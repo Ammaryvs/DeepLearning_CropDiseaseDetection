@@ -1,0 +1,26 @@
+# ResNet50 transfer learning – hyperparameters
+# Run: python -m src.models.resnet50.train  (from project root)
+
+model:
+  pretrained: true          # use ImageNet weights
+
+training:
+  seed: 42
+  dataset: combined     # plantvillage | plantdoc | combined
+  batch_size: 32
+  num_workers: 4
+  dropout: 0.5
+  weight_decay: 1.0e-4
+  early_stop_patience: 7
+
+  # Phase 1 – train classifier head only (backbone frozen)
+  phase1:
+    epochs: 10
+    lr: 1.0e-3
+
+  # Phase 2 – fine-tune layer4 + head (lower LR)
+  phase2:
+    epochs: 20
+    lr: 1.0e-4
+
+  save_dir: checkpoints/resnet50
