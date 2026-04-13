@@ -1,12 +1,14 @@
-import random
-from torch.utils.data import Dataset, DataLoader
-import torch
-from PIL import Image
-import torchvision.transforms as transforms
 from pathlib import Path
 
-# Load datasets
-PLANTVILLAGE_DIR = Path("../PlantVillage-Dataset/raw/color")
+import torch
+import torchvision.transforms as transforms
+from PIL import Image
+from torch.utils.data import Dataset
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+WORKSPACE_ROOT = PROJECT_ROOT.parent
+PLANTVILLAGE_DIR = WORKSPACE_ROOT / "PlantVillage-Dataset" / "raw" / "color"
 
 class PlantDiseaseDataset(Dataset):
     def __init__(self, samples, label2idx, transform=None):

@@ -51,6 +51,9 @@ class DataConfig:
     train_path: str = None
     val_path: str = None
     test_path: str = None
+    train_split: float = 0.8
+    val_split: float = 0.1
+    test_split: float = 0.1
     num_workers: int = 4
     pin_memory: bool = True
     shuffle: bool = True
@@ -236,6 +239,13 @@ def validate_config(config: FullConfig) -> bool:
     
     if config.model.num_classes <= 0:
         errors.append("Number of classes must be positive")
+
+    if min(config.data.train_split, config.data.val_split, config.data.test_split) < 0:
+        errors.append("Data split fractions must be non-negative")
+
+    split_sum = config.data.train_split + config.data.val_split + config.data.test_split
+    if abs(split_sum - 1.0) > 1e-6:
+        errors.append("train_split + val_split + test_split must equal 1.0")
     
     if config.training.optimizer not in ["adam", "sgd", "adamw"]:
         errors.append(f"Invalid optimizer: {config.training.optimizer}")
