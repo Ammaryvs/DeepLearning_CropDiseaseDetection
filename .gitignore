@@ -2,3 +2,4 @@
 logs/
 checkpoints/
 results/
+*.rar
