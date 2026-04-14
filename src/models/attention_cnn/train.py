@@ -348,7 +348,9 @@ def train(config_path: str = "config.yaml", config: FullConfig = None, run_name:
                 "val": dict(val_metrics),
             }
 
-        if (epoch + 1) % config.checkpoint.save_frequency == 0 or is_best:
+        should_save_regular = (epoch + 1) % config.checkpoint.save_frequency == 0
+        should_update_best = config.checkpoint.save_best_only and is_best
+        if should_save_regular or should_update_best:
             checkpoint_path = save_training_checkpoint(
                 state={
                     "epoch": epoch + 1,
@@ -362,10 +364,12 @@ def train(config_path: str = "config.yaml", config: FullConfig = None, run_name:
                 },
                 checkpoint_dir=config.checkpoint.checkpoint_dir,
                 filename=f"checkpoint_epoch_{epoch + 1:03d}.pt",
-                is_best=is_best,
+                save_primary=should_save_regular,
+                is_best=should_update_best,
             )
-            logging.info(f"Saved checkpoint: {checkpoint_path}")
-            if is_best:
+            if should_save_regular:
+                logging.info(f"Saved checkpoint: {checkpoint_path}")
+            if should_update_best:
                 logging.info(f"Saved best model: {Path(config.checkpoint.checkpoint_dir) / 'best_model.pt'}")
 
         monitored_score = val_metrics["accuracy"] if early_stopping.mode == "max" else val_metrics["loss"]

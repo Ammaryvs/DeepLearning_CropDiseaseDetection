@@ -50,13 +50,15 @@ def save_checkpoint(
     state: Mapping[str, Any],
     checkpoint_dir: str | Path,
     filename: str = "checkpoint.pt",
+    save_primary: bool = True,
     is_best: bool = False,
     best_filename: str = "best_model.pt",
 ) -> Path:
     """Save a training checkpoint and optionally update the best checkpoint."""
     checkpoint_dir = ensure_dir(checkpoint_dir)
     checkpoint_path = checkpoint_dir / filename
-    torch.save(dict(state), checkpoint_path)
+    if save_primary:
+        torch.save(dict(state), checkpoint_path)
 
     if is_best:
         best_path = checkpoint_dir / best_filename
