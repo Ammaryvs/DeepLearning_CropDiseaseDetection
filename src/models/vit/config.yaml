@@ -42,7 +42,7 @@ device:
 
 checkpoint:
   checkpoint_dir: ./checkpoints/vit
-  save_frequency: 5
+  save_frequency: 10
   save_best_only: true
   best_model_metric: val_accuracy
   log_dir: ./logs/vit

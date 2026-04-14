@@ -87,7 +87,7 @@ class DeviceConfig:
 class CheckpointConfig:
     """Configuration for model checkpointing and logging."""
     checkpoint_dir: str = "./checkpoints"
-    save_frequency: int = 5  # save every N epochs
+    save_frequency: int = 10  # save every N epochs
     save_best_only: bool = True
     best_model_metric: str = "val_accuracy"
     log_dir: str = "./logs"
