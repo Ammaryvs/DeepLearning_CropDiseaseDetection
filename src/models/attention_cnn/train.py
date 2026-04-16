@@ -1,5 +1,6 @@
 """Training script for AttentionCNN using CBAM-ResNet."""
 
+import argparse
 import json
 import logging
 import os
@@ -20,7 +21,13 @@ from common.config import FullConfig, validate_config
 from common.dataloader import create_plantvillage_dataloaders
 from common.metrics import MetricTracker, batch_accuracy, classification_metrics
 from common.seed import set_seed
-from common.utils import EarlyStopping, History, save_checkpoint as save_training_checkpoint
+from common.utils import (
+    EarlyStopping,
+    History,
+    load_checkpoint as load_training_checkpoint,
+    load_json,
+    save_checkpoint as save_training_checkpoint,
+)
 from model import create_cbam_resnet50
 
 
@@ -270,8 +277,16 @@ def validate(
     }
 
 
-def train(config_path: str = "config.yaml", config: FullConfig = None, run_name: str | None = None):
+def train(
+    config_path: str = "config.yaml",
+    config: FullConfig = None,
+    run_name: str | None = None,
+    resume_from: str | None = None,
+    epochs_override: int | None = None,
+):
     config = config or FullConfig.from_yaml(config_path)
+    if epochs_override is not None:
+        config.training.epochs = epochs_override
     config.data.random_seed = 42
     if not validate_config(config):
         raise ValueError("Invalid configuration")
@@ -303,6 +318,8 @@ def train(config_path: str = "config.yaml", config: FullConfig = None, run_name:
     scheduler = create_scheduler(config, optimizer)
     scaler = GradScaler('cuda') if config.device.mixed_precision else None
 
+    checkpoint_path = Path(resume_from).expanduser().resolve() if resume_from is not None else None
+    start_epoch = 0
     best_val_acc = 0.0
     best_epoch = 0
     best_metrics = None
@@ -312,7 +329,63 @@ def train(config_path: str = "config.yaml", config: FullConfig = None, run_name:
     )
     training_history = History()
 
-    for epoch in range(config.training.epochs):
+    if checkpoint_path is not None:
+        checkpoint = load_training_checkpoint(
+            checkpoint_path=checkpoint_path,
+            model=model,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            map_location=device,
+        )
+        start_epoch = int(checkpoint.get("epoch", 0))
+        best_val_acc = float(
+            checkpoint.get(
+                "best_val_acc",
+                checkpoint.get("metrics", {}).get("val", {}).get("accuracy", 0.0),
+            )
+        )
+        best_epoch = int(checkpoint.get("best_epoch", start_epoch if best_val_acc > 0 else 0))
+        best_metrics = checkpoint.get("best_metrics")
+
+        history_values = checkpoint.get("history")
+        if isinstance(history_values, dict):
+            training_history = History(values=history_values)
+        else:
+            history_file = Path(config.checkpoint.log_dir) / "training_history.json"
+            if history_file.exists():
+                training_history = History(values=load_json(history_file))
+
+        history_dict = training_history.to_dict()
+        val_acc_history = history_dict.get("val_acc", [])
+        if val_acc_history:
+            historical_best_val_acc = max(val_acc_history)
+            if historical_best_val_acc > best_val_acc:
+                best_val_acc = historical_best_val_acc
+                best_epoch = val_acc_history.index(historical_best_val_acc) + 1
+
+        early_stopping_state = checkpoint.get("early_stopping", {})
+        if isinstance(early_stopping_state, dict):
+            early_stopping.best_score = early_stopping_state.get("best_score")
+            early_stopping.num_bad_epochs = int(early_stopping_state.get("num_bad_epochs", 0))
+            early_stopping.should_stop = bool(early_stopping_state.get("should_stop", False))
+
+        scaler_state = checkpoint.get("scaler_state_dict")
+        if scaler is not None and scaler_state is not None:
+            scaler.load_state_dict(scaler_state)
+
+        logging.info(
+            "Resumed training from checkpoint %s at epoch %s",
+            checkpoint_path,
+            start_epoch,
+        )
+
+    if start_epoch >= config.training.epochs:
+        raise ValueError(
+            "Checkpoint epoch is already at or beyond training.epochs. "
+            "Increase training.epochs (or pass --epochs) to continue training."
+        )
+
+    for epoch in range(start_epoch, config.training.epochs):
         train_metrics = train_epoch(model, train_loader, criterion, optimizer, device, config, epoch, scaler)
         val_metrics = validate(model, val_loader, criterion, device, config, scaler)
 
@@ -357,10 +430,21 @@ def train(config_path: str = "config.yaml", config: FullConfig = None, run_name:
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "scheduler_state_dict": scheduler.state_dict() if scheduler is not None else None,
+                    "scaler_state_dict": scaler.state_dict() if scaler is not None else None,
                     "metrics": {"train": train_metrics, "val": val_metrics},
+                    "best_val_acc": best_val_acc,
+                    "best_epoch": best_epoch,
+                    "best_metrics": best_metrics,
+                    "history": training_history.to_dict(),
+                    "early_stopping": {
+                        "best_score": early_stopping.best_score,
+                        "num_bad_epochs": early_stopping.num_bad_epochs,
+                        "should_stop": early_stopping.should_stop,
+                    },
                     "config": config.to_dict(),
                     "seed": seed,
                     "run_name": run_name,
+                    "resume_from": str(checkpoint_path) if checkpoint_path is not None else None,
                 },
                 checkpoint_dir=config.checkpoint.checkpoint_dir,
                 filename=f"checkpoint_epoch_{epoch + 1:03d}.pt",
@@ -435,6 +519,23 @@ def train(config_path: str = "config.yaml", config: FullConfig = None, run_name:
     }
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Train AttentionCNN using the provided config file.")
+    parser.add_argument("config", nargs="?", default="config.yaml")
+    parser.add_argument("--resume-from", dest="resume_from", default=None)
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        help="Override the total number of epochs to train up to.",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    config_path = sys.argv[1] if len(sys.argv) > 1 else "config.yaml"
-    train(config_path)
+    args = parse_args()
+    train(
+        config_path=args.config,
+        resume_from=args.resume_from,
+        epochs_override=args.epochs,
+    )

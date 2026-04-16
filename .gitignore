@@ -3,3 +3,6 @@ logs/
 checkpoints/
 results/
 *.rar
+*.zip
+export_logs_to_csv.py
+logs_csv/
