@@ -1,50 +1,75 @@
-# SimpleCNN Training Configuration
-# Basic CNN model for quick training and baseline comparison
+# # SimpleCNN Training Configuration
+# # Basic CNN model for quick training and baseline comparison
+
+# model:
+#   model_name: simple_cnn
+#   num_classes: 26
+#   input_size: 224
+#   pretrained: false
+#   freeze_backbone: false
+#   dropout_rate: 0.4
+
+# training:
+#   epochs: 50
+#   batch_size: 32
+#   learning_rate: 0.001
+#   weight_decay: 0.00005
+#   momentum: 0.9
+#   optimizer: adam
+#   scheduler: step
+#   scheduler_step_size: 10
+#   scheduler_gamma: 0.5
+#   early_stopping_patience: 10
+#   early_stopping_metric: val_loss
+
+# data:
+#   data_path: ../../../PlantVillage-Dataset/raw/segmented
+#   train_path: ../../../PlantVillage-Dataset/raw/segmented/train
+#   val_path: ../../../PlantVillage-Dataset/raw/segmented/val
+#   test_path: ../../../PlantVillage-Dataset/raw/segmented/test
+#   num_workers: 2
+#   pin_memory: true
+#   shuffle: true
+#   augmentation: true
+#   augmentation_strength: 0.3
+#   validation_split: 0.2
+#   random_seed: 42
+
+# device:
+#   device: cuda
+#   multi_gpu: false
+#   gpu_ids: [0]
+#   mixed_precision: false
+
+# checkpoint:
+#   checkpoint_dir: ./checkpoints/simple_cnn
+#   save_frequency: 5
+#   save_best_only: true
+#   best_model_metric: val_accuracy
+#   log_dir: ./logs/simple_cnn
+#   log_frequency: 50
+
+# SimpleCNN – hyperparameters
+# Run: python -m src.models.simple_cnn.train  (from project root)
+#
+# Grid search findings (simplecnn.ipynb) — both tested at lr=0.1:
+#   Adam lr=0.1 → test_acc=0.0959  (LR too high, failed to learn)
+#   SGD  lr=0.1 → NaN loss         (diverged immediately)
+#
+# Neither lr=0.1 combination worked. Adam lr=0.001 is recommended
+# as a safe starting point for training SimpleCNN from scratch.
 
 model:
-  model_name: simple_cnn
-  num_classes: 26
-  input_size: 224
-  pretrained: false
-  freeze_backbone: false
-  dropout_rate: 0.4
+  dropout: 0.5
 
 training:
-  epochs: 50
+  seed: 42
   batch_size: 32
-  learning_rate: 0.001
-  weight_decay: 0.00005
-  momentum: 0.9
-  optimizer: adam
-  scheduler: step
-  scheduler_step_size: 10
-  scheduler_gamma: 0.5
-  early_stopping_patience: 10
-  early_stopping_metric: val_loss
+  num_workers: 4
+  weight_decay: 1.0e-4
+  early_stop_patience: 7
+  optimizer: Adam           # SGD | Adam | AdamW
+  lr: 1.0e-3                # lr=0.1 failed in notebook; 0.001 recommended
+  epochs: 15
 
-data:
-  data_path: ../../../PlantVillage-Dataset/raw/segmented
-  train_path: ../../../PlantVillage-Dataset/raw/segmented/train
-  val_path: ../../../PlantVillage-Dataset/raw/segmented/val
-  test_path: ../../../PlantVillage-Dataset/raw/segmented/test
-  num_workers: 2
-  pin_memory: true
-  shuffle: true
-  augmentation: true
-  augmentation_strength: 0.3
-  validation_split: 0.2
-  random_seed: 42
-
-device:
-  device: cuda
-  multi_gpu: false
-  gpu_ids: [0]
-  mixed_precision: false
-
-checkpoint:
-  checkpoint_dir: ./checkpoints/simple_cnn
-  save_frequency: 5
-  save_best_only: true
-  best_model_metric: val_accuracy
-  log_dir: ./logs/simple_cnn
-  log_frequency: 50
+  save_dir: checkpoints/simple_cnn

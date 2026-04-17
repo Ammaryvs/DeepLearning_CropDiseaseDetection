@@ -1,50 +1,79 @@
-# MobileNetV2 Training Configuration
-# Lightweight model - can use larger batch size and faster training
+# # MobileNetV2 Training Configuration
+# # Lightweight model - can use larger batch size and faster training
+
+# model:
+#   model_name: mobilenetv2
+#   num_classes: 26
+#   input_size: 224
+#   pretrained: true
+#   freeze_backbone: false
+#   dropout_rate: 0.2
+
+# training:
+#   epochs: 80
+#   batch_size: 64
+#   learning_rate: 0.001
+#   weight_decay: 0.00005
+#   momentum: 0.9
+#   optimizer: adam
+#   scheduler: cosine
+#   scheduler_step_size: 10
+#   scheduler_gamma: 0.1
+#   early_stopping_patience: 12
+#   early_stopping_metric: val_accuracy
+
+# data:
+#   data_path: ../../../PlantVillage-Dataset/raw/segmented
+#   train_path: ../../../PlantVillage-Dataset/raw/segmented/train
+#   val_path: ../../../PlantVillage-Dataset/raw/segmented/val
+#   test_path: ../../../PlantVillage-Dataset/raw/segmented/test
+#   num_workers: 4
+#   pin_memory: true
+#   shuffle: true
+#   augmentation: true
+#   augmentation_strength: 0.4
+#   validation_split: 0.2
+#   random_seed: 42
+
+# device:
+#   device: cuda
+#   multi_gpu: false
+#   gpu_ids: [0]
+#   mixed_precision: true
+
+# checkpoint:
+#   checkpoint_dir: ./checkpoints/mobilenetv2
+#   save_frequency: 5
+#   save_best_only: true
+#   best_model_metric: val_accuracy
+#   log_dir: ./logs/mobilenetv2
+#   log_frequency: 50
+
+# MobileNetV2 transfer learning – hyperparameters
+# Run: python -m src.models.mobilenetv2.train  (from project root)
+#
+# Notebook results (MobileNet.ipynb):
+#   LR=0.0001, Dropout=0.1, Adam, StepLR(step_size=7, gamma=0.1), 18 epochs
+#   → Epoch 1: Train acc 90.03%  |  Val acc 98.53%
+#   (training was interrupted after epoch 2)
 
 model:
-  model_name: mobilenetv2
-  num_classes: 26
-  input_size: 224
   pretrained: true
-  freeze_backbone: false
-  dropout_rate: 0.2
+  dropout: 0.1
 
 training:
-  epochs: 80
-  batch_size: 64
-  learning_rate: 0.001
-  weight_decay: 0.00005
-  momentum: 0.9
-  optimizer: adam
-  scheduler: cosine
-  scheduler_step_size: 10
-  scheduler_gamma: 0.1
-  early_stopping_patience: 12
-  early_stopping_metric: val_accuracy
-
-data:
-  data_path: ../../../PlantVillage-Dataset/raw/segmented
-  train_path: ../../../PlantVillage-Dataset/raw/segmented/train
-  val_path: ../../../PlantVillage-Dataset/raw/segmented/val
-  test_path: ../../../PlantVillage-Dataset/raw/segmented/test
+  seed: 42
+  batch_size: 32
   num_workers: 4
-  pin_memory: true
-  shuffle: true
-  augmentation: true
-  augmentation_strength: 0.4
-  validation_split: 0.2
-  random_seed: 42
+  weight_decay: 1.0e-4
+  early_stop_patience: 7
+  optimizer: Adam           # Adam | SGD | AdamW
+  lr: 1.0e-4
+  epochs: 18
 
-device:
-  device: cuda
-  multi_gpu: false
-  gpu_ids: [0]
-  mixed_precision: true
+  # StepLR scheduler — matches notebook exactly
+  scheduler:
+    step_size: 7
+    gamma: 0.1
 
-checkpoint:
-  checkpoint_dir: ./checkpoints/mobilenetv2
-  save_frequency: 5
-  save_best_only: true
-  best_model_metric: val_accuracy
-  log_dir: ./logs/mobilenetv2
-  log_frequency: 50
+  save_dir: checkpoints/mobilenetv2
