@@ -1,7 +1,8 @@
 # DeepLearning_CropDiseaseDetection
 
-Dataset:
+Plant disease classification experiments on the PlantVillage dataset.
 
+Dataset:
 https://github.com/spMohanty/PlantVillage-Dataset
 
 Reference:
@@ -19,12 +20,14 @@ Reference:
 ## Setup
 
 1. Clone this repository.
-2. Clone the PlantVillage dataset next to this repository so the default paths work:
+2. Place the PlantVillage dataset next to this repository so the default shared loader path works:
 
 ```text
 adl/
 |- DeepLearning_CropDiseaseDetection/
 |- PlantVillage-Dataset/
+   |- raw/
+      |- color/
 ```
 
 3. Install dependencies:
@@ -33,89 +36,103 @@ adl/
 pip install -r requirements.txt
 ```
 
-4. Install `timm` as well if you want to run the Vision Transformer model:
+4. Install `timm` if you want to run the ViT model:
 
 ```bash
 pip install timm
 ```
 
-## How To Run The Models
-
-Run all commands from the repository root:
+Run commands from the repository root:
 
 ```bash
 cd DeepLearning_CropDiseaseDetection
 ```
 
-Before training, update the relevant `config.yaml` file if you want to change:
+## Shared Data Loading
 
-- dataset path
-- batch size
-- number of epochs
-- optimizer or scheduler
-- checkpoint and log directories
+The classic CNN and transfer-learning scripts below use the shared loader in `src/common/`.
 
-The currently implemented model pipelines are:
+- Default dataset root: `../PlantVillage-Dataset/raw/color`
+- Data split: random stratified `80/10/10`
+- Split is rebuilt each run using the configured seed
+- Default checkpoint outputs go under `checkpoints/<model_name>/`
 
-- `attention_cnn`
-- `vit`
+If you want different hyperparameters, edit that model folder's `config.yaml`.
 
-The other folders under `src/models/` currently contain config placeholders only and do not yet have runnable `train.py` / `test.py` implementations.
+## Runnable Models
 
-## Train Attention CNN
+These model folders are wired to the current shared `common/` code:
+
+- `src/models/deep_cnn`
+- `src/models/efficientnet_b0`
+- `src/models/mobilenetv2`
+- `src/models/resnet50`
+- `src/models/simple_cnn`
+- `src/models/attention_cnn`
+- `src/models/vit`
+
+## Train And Test
+
+### Deep CNN
+
+```bash
+python -m src.models.deep_cnn.train
+python -m src.models.deep_cnn.test --checkpoint checkpoints/deep_cnn/best_model.pth
+```
+
+### EfficientNet-B0
+
+```bash
+python -m src.models.efficientnet_b0.train
+python -m src.models.efficientnet_b0.test --checkpoint checkpoints/efficientnet_b0/best_model.pth
+```
+
+### MobileNetV2
+
+```bash
+python -m src.models.mobilenetv2.train
+python -m src.models.mobilenetv2.test --checkpoint checkpoints/mobilenetv2/best_model.pth
+```
+
+### ResNet50
+
+```bash
+python -m src.models.resnet50.train
+python -m src.models.resnet50.test --checkpoint checkpoints/resnet50/best_model.pth
+```
+
+### Simple CNN
+
+```bash
+python -m src.models.simple_cnn.train
+python -m src.models.simple_cnn.test --checkpoint checkpoints/simple_cnn/best_model.pth
+```
+
+### Attention CNN
 
 ```bash
 python src/models/attention_cnn/train.py src/models/attention_cnn/config.yaml
-```
-
-Optional examples:
-
-```bash
-python src/models/attention_cnn/train.py src/models/attention_cnn/config.yaml --epochs 10
-python src/models/attention_cnn/train.py src/models/attention_cnn/config.yaml --resume-from checkpoints/attention_cnn/best_model.pt
-```
-
-## Test Attention CNN
-
-```bash
 python src/models/attention_cnn/test.py --config src/models/attention_cnn/config.yaml --checkpoint best_model.pt
 ```
 
-If `best_model.pt` is not in the current folder, the script will look inside the checkpoint directory defined in the config, which defaults to:
-
-```text
-checkpoints/attention_cnn/
-```
-
-## Train Vision Transformer
-
-The ViT training script uses parameters from config.yaml, so just adjust the parameters from there.
+### Vision Transformer
 
 ```bash
 python src/models/vit/train.py
-```
-
-## Test Vision Transformer
-
-```bash
 python src/models/vit/test.py --config src/models/vit/config.yaml --checkpoint best_model.pt
 ```
 
-If `best_model.pt` is not in the current folder, the script will look inside the checkpoint directory defined in the config, which defaults to:
+## Outputs
 
-```text
-checkpoints/vit/
-```
+Training scripts typically write:
 
-## Training Outputs
+- model checkpoints such as `best_model.pt` or `best_model.pth`
+- `history.json`
+- `training_curves.png`
+- test-time metrics and confusion matrix images for the matching `test.py`
 
-By default, training writes artifacts to:
+## Notes
 
-- `checkpoints/attention_cnn/` or `checkpoints/vit/`
-- `logs/attention_cnn/` or `logs/vit/`
-
-The best checkpoint is usually saved as:
-
-```text
-best_model.pt
-```
+- `attention_cnn` and `vit` use the newer config system in `src/common/config.py`.
+- `efficientnet_b0`, `mobilenetv2`, and `resnet50` use pretrained torchvision weights by default, so the first run may download model weights.
+- `deep_cnn` and `simple_cnn` train from scratch.

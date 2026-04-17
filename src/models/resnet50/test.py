@@ -45,12 +45,11 @@ def main():
     print(f"Device: {device}")
 
     # ── Data ─────────────────────────────────────────────────────────────────
-    dataset_key = cfg['training']['dataset']
     dataloaders = create_dataloaders(
         batch_size=cfg['training']['batch_size'],
         num_workers=cfg['training']['num_workers'],
     )
-    loaders = dataloaders[dataset_key]
+    loaders = dataloaders['loaders']
 
     # ── Load checkpoint ───────────────────────────────────────────────────────
     ckpt_path = args.checkpoint or os.path.join(cfg['training']['save_dir'], 'best_model.pth')
@@ -65,7 +64,7 @@ def main():
 
     model = build_resnet50(num_classes=num_classes, pretrained=False,
                            dropout=cfg['training']['dropout']).to(device)
-    load_checkpoint(ckpt_path, model, device=device)
+    load_checkpoint(ckpt_path, model=model, map_location=device)
 
     # ── Evaluate ─────────────────────────────────────────────────────────────
     criterion = nn.CrossEntropyLoss()

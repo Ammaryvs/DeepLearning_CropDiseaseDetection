@@ -5,7 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Mapping, MutableMapping, Sequence, Tuple
 
+import matplotlib.pyplot as plt
 import torch
+from sklearn.metrics import classification_report
 
 
 @dataclass
@@ -173,3 +175,104 @@ def batch_accuracy(logits: torch.Tensor, targets: torch.Tensor) -> float:
     """Return top-1 accuracy as a ratio in [0, 1]."""
     preds = logits.argmax(dim=1)
     return float((preds == targets).float().mean().item())
+
+
+def compute_metrics(
+    targets: Iterable[int] | torch.Tensor,
+    predictions: Iterable[int] | torch.Tensor,
+    num_classes: int | None = None,
+    class_names: Sequence[str] | None = None,
+) -> Dict[str, object]:
+    """Backward-compatible weighted metrics wrapper used by older model scripts."""
+    if num_classes is None:
+        pred_tensor = _to_long_tensor(predictions)
+        target_tensor = _to_long_tensor(targets)
+        max_label = -1
+        if pred_tensor.numel():
+            max_label = max(max_label, int(pred_tensor.max().item()))
+        if target_tensor.numel():
+            max_label = max(max_label, int(target_tensor.max().item()))
+        num_classes = max_label + 1 if max_label >= 0 else 0
+
+    summary = classification_metrics(
+        predictions=predictions,
+        targets=targets,
+        num_classes=num_classes,
+        class_names=class_names,
+    )
+    return {
+        "accuracy": summary["accuracy"],
+        "precision": summary["weighted_precision"],
+        "recall": summary["weighted_recall"],
+        "f1": summary["weighted_f1"],
+        "macro_precision": summary["macro_precision"],
+        "macro_recall": summary["macro_recall"],
+        "macro_f1": summary["macro_f1"],
+        "per_class": summary["per_class"],
+        "confusion_matrix": summary["confusion_matrix"],
+    }
+
+
+def print_report(
+    targets: Iterable[int] | torch.Tensor,
+    predictions: Iterable[int] | torch.Tensor,
+    class_names: Sequence[str] | None = None,
+) -> str:
+    """Print a sklearn classification report for backwards compatibility."""
+    target_tensor = _to_long_tensor(targets)
+    prediction_tensor = _to_long_tensor(predictions)
+
+    if class_names is None:
+        unique_ids = sorted(set(target_tensor.tolist()) | set(prediction_tensor.tolist()))
+        labels = unique_ids
+        target_names = [str(label) for label in labels]
+    else:
+        labels = list(range(len(class_names)))
+        target_names = list(class_names)
+
+    report = classification_report(
+        target_tensor.tolist(),
+        prediction_tensor.tolist(),
+        labels=labels,
+        target_names=target_names,
+        zero_division=0,
+    )
+    print(report)
+    return report
+
+
+def plot_confusion_matrix(
+    targets: Iterable[int] | torch.Tensor,
+    predictions: Iterable[int] | torch.Tensor,
+    class_names: Sequence[str] | None = None,
+    save_path: str | None = None,
+):
+    """Render and optionally save a confusion matrix figure."""
+    if class_names is None:
+        combined = sorted(set(_to_long_tensor(targets).tolist()) | set(_to_long_tensor(predictions).tolist()))
+        num_classes = len(combined)
+        class_names = [str(label) for label in combined]
+    else:
+        num_classes = len(class_names)
+
+    matrix = confusion_matrix(predictions, targets, num_classes=num_classes).numpy()
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    image = ax.imshow(matrix, interpolation="nearest", cmap=plt.cm.Blues)
+    fig.colorbar(image, ax=ax)
+    ax.set(
+        title="Confusion Matrix",
+        xlabel="Predicted Label",
+        ylabel="True Label",
+        xticks=range(num_classes),
+        yticks=range(num_classes),
+        xticklabels=class_names,
+        yticklabels=class_names,
+    )
+    plt.setp(ax.get_xticklabels(), rotation=90, ha="center")
+    fig.tight_layout()
+
+    if save_path is not None:
+        fig.savefig(save_path, bbox_inches="tight")
+        plt.close(fig)
+    return fig

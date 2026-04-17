@@ -8,7 +8,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, MutableMapping, Optional
 
+import matplotlib.pyplot as plt
 import torch
+from torch.utils.data import DataLoader
+
+from .metrics import batch_accuracy
 
 
 def ensure_dir(path: str | Path) -> Path:
@@ -55,13 +59,21 @@ def save_checkpoint(
     best_filename: str = "best_model.pt",
 ) -> Path:
     """Save a training checkpoint and optionally update the best checkpoint."""
-    checkpoint_dir = ensure_dir(checkpoint_dir)
-    checkpoint_path = checkpoint_dir / filename
+    checkpoint_target = Path(checkpoint_dir)
+    is_filepath_target = checkpoint_target.suffix.lower() in {".pt", ".pth", ".ckpt", ".bin"}
+
+    if is_filepath_target:
+        ensure_dir(checkpoint_target.parent)
+        checkpoint_path = checkpoint_target
+    else:
+        checkpoint_dir = ensure_dir(checkpoint_target)
+        checkpoint_path = checkpoint_dir / filename
+
     if save_primary:
         torch.save(dict(state), checkpoint_path)
 
     if is_best:
-        best_path = checkpoint_dir / best_filename
+        best_path = checkpoint_path.parent / best_filename
         torch.save(dict(state), best_path)
 
     return checkpoint_path
@@ -147,3 +159,113 @@ class EarlyStopping:
         self.num_bad_epochs += 1
         self.should_stop = self.num_bad_epochs >= self.patience
         return False
+
+    def __call__(self, score: float) -> bool:
+        """Backward-compatible wrapper that returns True when training should stop."""
+        self.step(score)
+        return self.should_stop
+
+
+def train_one_epoch(
+    model: torch.nn.Module,
+    loader: DataLoader,
+    criterion: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device | str,
+) -> tuple[float, float]:
+    """Train for one epoch and return average loss and accuracy ratio."""
+    model.train()
+    running_loss = 0.0
+    running_correct = 0
+    total = 0
+
+    for images, labels in loader:
+        images = images.to(device)
+        labels = labels.to(device)
+
+        optimizer.zero_grad()
+        outputs = model(images)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        batch_size = labels.size(0)
+        running_loss += loss.item() * batch_size
+        running_correct += (outputs.argmax(dim=1) == labels).sum().item()
+        total += batch_size
+
+    if total == 0:
+        return 0.0, 0.0
+
+    return running_loss / total, running_correct / total
+
+
+def evaluate(
+    model: torch.nn.Module,
+    loader: DataLoader,
+    criterion: torch.nn.Module,
+    device: torch.device | str,
+) -> tuple[float, float, list[int], list[int]]:
+    """Evaluate a model and return loss, accuracy ratio, predictions, and labels."""
+    model.eval()
+    running_loss = 0.0
+    running_correct = 0
+    total = 0
+    all_preds: list[int] = []
+    all_labels: list[int] = []
+
+    with torch.no_grad():
+        for images, labels in loader:
+            images = images.to(device)
+            labels = labels.to(device)
+
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            predictions = outputs.argmax(dim=1)
+
+            batch_size = labels.size(0)
+            running_loss += loss.item() * batch_size
+            running_correct += (predictions == labels).sum().item()
+            total += batch_size
+
+            all_preds.extend(predictions.detach().cpu().tolist())
+            all_labels.extend(labels.detach().cpu().tolist())
+
+    if total == 0:
+        return 0.0, 0.0, all_preds, all_labels
+
+    return running_loss / total, running_correct / total, all_preds, all_labels
+
+
+def plot_training_curves(
+    train_losses: list[float],
+    val_losses: list[float],
+    train_accs: list[float],
+    val_accs: list[float],
+    save_path: str | Path,
+) -> Path:
+    """Plot loss and accuracy curves to disk."""
+    save_path = Path(save_path)
+    ensure_dir(save_path.parent)
+
+    epochs = range(1, max(len(train_losses), len(val_losses), len(train_accs), len(val_accs)) + 1)
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+    axes[0].plot(list(epochs)[:len(train_losses)], train_losses, label="Train Loss")
+    axes[0].plot(list(epochs)[:len(val_losses)], val_losses, label="Val Loss")
+    axes[0].set_title("Loss")
+    axes[0].set_xlabel("Epoch")
+    axes[0].set_ylabel("Loss")
+    axes[0].legend()
+
+    axes[1].plot(list(epochs)[:len(train_accs)], train_accs, label="Train Acc")
+    axes[1].plot(list(epochs)[:len(val_accs)], val_accs, label="Val Acc")
+    axes[1].set_title("Accuracy")
+    axes[1].set_xlabel("Epoch")
+    axes[1].set_ylabel("Accuracy")
+    axes[1].legend()
+
+    fig.tight_layout()
+    fig.savefig(save_path, bbox_inches="tight")
+    plt.close(fig)
+    return save_path
