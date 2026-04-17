@@ -1,0 +1,28 @@
+# EfficientNet-B0 transfer learning – hyperparameters
+# Run: python -m src.models.efficientnet_b0.train  (from project root)
+#
+# Notebook results (efficientnet.ipynb):
+#   LR=0.001, Dropout=0.2, Adam, StepLR(step_size=7, gamma=0.1), 12 epochs
+#   → Val acc: 99.78%  |  Test acc: 99.78%
+#   → Precision/Recall/F1 (weighted): 99.78%
+
+model:
+  pretrained: true
+  dropout: 0.2
+
+training:
+  seed: 42
+  batch_size: 32
+  num_workers: 4
+  weight_decay: 1.0e-4
+  early_stop_patience: 7
+  optimizer: Adam           # Adam | SGD | AdamW
+  lr: 1.0e-3
+  epochs: 12
+
+  # StepLR scheduler — matches notebook exactly
+  scheduler:
+    step_size: 7
+    gamma: 0.1
+
+  save_dir: checkpoints/efficientnet_b0

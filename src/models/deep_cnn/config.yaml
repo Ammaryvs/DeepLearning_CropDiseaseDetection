@@ -1,0 +1,23 @@
+# DeepCNN – hyperparameters
+# Run: python -m src.models.deep_cnn.train  (from project root)
+#
+# Grid search findings (from deepcnn.ipynb):
+#   SGD  lr=0.1   → diverged  (val acc ~10%)
+#   SGD  lr=0.01  → best      (val acc 0.9845, test acc 0.9834)
+#   Adam lr=0.1   → unstable
+#   Adam lr=0.01  → good
+
+model:
+  dropout: 0.5
+
+training:
+  seed: 42
+  batch_size: 32
+  num_workers: 4
+  weight_decay: 0.0
+  early_stop_patience: 7
+  optimizer: SGD            # SGD | Adam | AdamW
+  lr: 0.01                  # best from grid search
+  epochs: 15
+
+  save_dir: checkpoints/deep_cnn
