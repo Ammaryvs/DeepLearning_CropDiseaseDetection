@@ -1,0 +1,80 @@
+# # EfficientNet-B0 Training Configuration
+# # Efficient model with good balance of speed and accuracy
+
+# model:
+#   model_name: efficientnet_b0
+#   num_classes: 26
+#   input_size: 224
+#   pretrained: true
+#   freeze_backbone: false
+#   dropout_rate: 0.25
+
+# training:
+#   epochs: 100
+#   batch_size: 48
+#   learning_rate: 0.001
+#   weight_decay: 0.0001
+#   momentum: 0.9
+#   optimizer: adam
+#   scheduler: cosine
+#   scheduler_step_size: 10
+#   scheduler_gamma: 0.1
+#   early_stopping_patience: 15
+#   early_stopping_metric: val_accuracy
+
+# data:
+#   data_path: ../../../PlantVillage-Dataset/raw/segmented
+#   train_path: ../../../PlantVillage-Dataset/raw/segmented/train
+#   val_path: ../../../PlantVillage-Dataset/raw/segmented/val
+#   test_path: ../../../PlantVillage-Dataset/raw/segmented/test
+#   num_workers: 4
+#   pin_memory: true
+#   shuffle: true
+#   augmentation: true
+#   augmentation_strength: 0.5
+#   validation_split: 0.2
+#   random_seed: 42
+
+# device:
+#   device: cuda
+#   multi_gpu: false
+#   gpu_ids: [0]
+#   mixed_precision: true
+
+# checkpoint:
+#   checkpoint_dir: ./checkpoints/efficientnet_b0
+#   save_frequency: 5
+#   save_best_only: true
+#   best_model_metric: val_accuracy
+#   log_dir: ./logs/efficientnet_b0
+#   log_frequency: 50
+
+
+# EfficientNet-B0 transfer learning – hyperparameters
+# Run: python -m src.models.efficientnet_b0.train  (from project root)
+#
+# Notebook results (efficientnet.ipynb):
+#   LR=0.001, Dropout=0.2, Adam, StepLR(step_size=7, gamma=0.1), 12 epochs
+#   → Val acc: 99.78%  |  Test acc: 99.78%
+#   → Precision/Recall/F1 (weighted): 99.78%
+
+model:
+  pretrained: true
+  dropout: 0.2
+
+training:
+  seed: 42
+  batch_size: 32
+  num_workers: 4
+  weight_decay: 1.0e-4
+  early_stop_patience: 7
+  optimizer: Adam           # Adam | SGD | AdamW
+  lr: 1.0e-3
+  epochs: 12
+
+  # StepLR scheduler — matches notebook exactly
+  scheduler:
+    step_size: 7
+    gamma: 0.1
+
+  save_dir: checkpoints/efficientnet_b0
