@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crop Disease Detector</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1a0f;
+      color: #e8f5e9;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px 60px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #69f0ae;
+      letter-spacing: -0.5px;
+    }
+
+    header p {
+      margin-top: 8px;
+      color: #a5d6a7;
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: #1b2e1b;
+      border: 1px solid #2e4d2e;
+      border-radius: 16px;
+      padding: 32px;
+      width: 100%;
+      max-width: 600px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    /* ── Drop Zone ── */
+    #drop-zone {
+      border: 2px dashed #4caf50;
+      border-radius: 12px;
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+      position: relative;
+    }
+
+    #drop-zone:hover, #drop-zone.drag-over {
+      background: #1e3a1e;
+      border-color: #69f0ae;
+    }
+
+    #drop-zone svg {
+      width: 48px;
+      height: 48px;
+      stroke: #4caf50;
+      margin-bottom: 12px;
+    }
+
+    #drop-zone p {
+      color: #a5d6a7;
+      font-size: 0.9rem;
+    }
+
+    #drop-zone span {
+      color: #69f0ae;
+      font-weight: 600;
+    }
+
+    #file-input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── Preview ── */
+    #preview-wrap {
+      display: none;
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    #preview-img {
+      max-width: 100%;
+      max-height: 280px;
+      border-radius: 10px;
+      border: 2px solid #2e4d2e;
+      object-fit: contain;
+    }
+
+    /* ── Buttons ── */
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #classify-btn {
+      background: #4caf50;
+      color: #fff;
+    }
+
+    #classify-btn:not(:disabled):hover { background: #43a047; }
+
+    #clear-btn {
+      background: #263226;
+      color: #a5d6a7;
+      border: 1px solid #2e4d2e;
+    }
+
+    #clear-btn:not(:disabled):hover { background: #2e3d2e; }
+
+    /* ── Spinner ── */
+    #spinner {
+      display: none;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-top: 20px;
+      color: #a5d6a7;
+      font-size: 0.9rem;
+    }
+
+    .spin {
+      width: 22px;
+      height: 22px;
+      border: 3px solid #2e4d2e;
+      border-top-color: #69f0ae;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Results ── */
+    #results {
+      display: none;
+      margin-top: 28px;
+    }
+
+    #results h2 {
+      font-size: 1rem;
+      color: #a5d6a7;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+
+    .top-result {
+      background: #0f2010;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-left: 4px solid #4caf50;
+    }
+
+    .top-result.diseased { border-left-color: #ef5350; }
+
+    .top-result .plant-name {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #e8f5e9;
+    }
+
+    .top-result .disease-name {
+      font-size: 0.95rem;
+      margin-top: 4px;
+    }
+
+    .top-result .disease-name.healthy-tag { color: #69f0ae; }
+    .top-result .disease-name.disease-tag { color: #ef9a9a; }
+
+    .top-result .conf-big {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #69f0ae;
+      margin-top: 8px;
+    }
+
+    .top-result.diseased .conf-big { color: #ef5350; }
+
+    .others-label {
+      font-size: 0.8rem;
+      color: #81c784;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 10px;
+    }
+
+    .pred-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .pred-name {
+      flex: 0 0 200px;
+      font-size: 0.82rem;
+      color: #c8e6c9;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .bar-wrap {
+      flex: 1;
+      background: #1b2e1b;
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: #4caf50;
+      transition: width 0.6s ease;
+    }
+
+    .bar-fill.diseased { background: #ef5350; }
+
+    .pred-pct {
+      flex: 0 0 46px;
+      text-align: right;
+      font-size: 0.82rem;
+      color: #a5d6a7;
+    }
+
+    /* ── Error ── */
+    #error-msg {
+      display: none;
+      margin-top: 16px;
+      background: #3e1a1a;
+      border: 1px solid #b71c1c;
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #ef9a9a;
+      font-size: 0.88rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Crop Disease Detector</h1>
+  <p>MobileNetV2 · 38 classes · PlantVillage dataset · 99.82% test accuracy</p>
+</header>
+
+<div class="card">
+  <div id="drop-zone">
+    <input type="file" id="file-input" accept="image/*" />
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+    </svg>
+    <p><span>Click to upload</span> or drag & drop a leaf image</p>
+    <p style="margin-top:6px;font-size:0.8rem;color:#558b5e;">PNG, JPG, WEBP — max 10 MB</p>
+  </div>
+
+  <div id="preview-wrap">
+    <img id="preview-img" src="" alt="Preview" />
+  </div>
+
+  <div class="btn-row">
+    <button id="classify-btn" disabled>Classify</button>
+    <button id="clear-btn" disabled>Clear</button>
+  </div>
+
+  <div id="spinner"><div class="spin"></div> Analysing…</div>
+  <div id="error-msg"></div>
+  <div id="results"></div>
+</div>
+
+<script>
+  const dropZone = document.getElementById("drop-zone");
+  const fileInput = document.getElementById("file-input");
+  const previewWrap = document.getElementById("preview-wrap");
+  const previewImg = document.getElementById("preview-img");
+  const classifyBtn = document.getElementById("classify-btn");
+  const clearBtn = document.getElementById("clear-btn");
+  const spinner = document.getElementById("spinner");
+  const errorMsg = document.getElementById("error-msg");
+  const resultsDiv = document.getElementById("results");
+
+  let currentFile = null;
+
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files[0]) loadFile(fileInput.files[0]);
+  });
+
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("drag-over");
+    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+
+  function loadFile(file) {
+    currentFile = file;
+    const url = URL.createObjectURL(file);
+    previewImg.src = url;
+    previewWrap.style.display = "block";
+    classifyBtn.disabled = false;
+    clearBtn.disabled = false;
+    hideResults();
+  }
+
+  clearBtn.addEventListener("click", () => {
+    currentFile = null;
+    fileInput.value = "";
+    previewWrap.style.display = "none";
+    previewImg.src = "";
+    classifyBtn.disabled = true;
+    clearBtn.disabled = true;
+    hideResults();
+  });
+
+  classifyBtn.addEventListener("click", async () => {
+    if (!currentFile) return;
+    hideResults();
+    spinner.style.display = "flex";
+    classifyBtn.disabled = true;
+
+    const form = new FormData();
+    form.append("image", currentFile);
+
+    try {
+      const res = await fetch("/predict", { method: "POST", body: form });
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        showError(data.error || "Server error");
+        return;
+      }
+
+      renderResults(data.predictions);
+    } catch (err) {
+      showError("Network error — is the server running?");
+    } finally {
+      spinner.style.display = "none";
+      classifyBtn.disabled = false;
+    }
+  });
+
+  function renderResults(preds) {
+    if (!preds || preds.length === 0) { showError("No predictions returned."); return; }
+
+    const top = preds[0];
+    const isHealthy = top.healthy;
+
+    let html = `<h2>Results</h2>`;
+    html += `
+      <div class="top-result ${isHealthy ? "" : "diseased"}">
+        <div class="plant-name">${top.plant}</div>
+        <div class="disease-name ${isHealthy ? "healthy-tag" : "disease-tag"}">
+          ${isHealthy ? "✓ Healthy" : "⚠ " + top.disease}
+        </div>
+        <div class="conf-big">${top.confidence.toFixed(1)}%</div>
+      </div>`;
+
+    if (preds.length > 1) {
+      html += `<div class="others-label">Other possibilities</div>`;
+      for (let i = 1; i < preds.length; i++) {
+        const p = preds[i];
+        html += `
+          <div class="pred-row">
+            <div class="pred-name" title="${p.plant} — ${p.disease}">${p.plant} — ${p.healthy ? "Healthy" : p.disease}</div>
+            <div class="bar-wrap">
+              <div class="bar-fill ${p.healthy ? "" : "diseased"}" style="width:${Math.min(p.confidence, 100)}%"></div>
+            </div>
+            <div class="pred-pct">${p.confidence.toFixed(1)}%</div>
+          </div>`;
+      }
+    }
+
+    resultsDiv.innerHTML = html;
+    resultsDiv.style.display = "block";
+  }
+
+  function showError(msg) {
+    errorMsg.textContent = msg;
+    errorMsg.style.display = "block";
+  }
+
+  function hideResults() {
+    resultsDiv.style.display = "none";
+    resultsDiv.innerHTML = "";
+    errorMsg.style.display = "none";
+    errorMsg.textContent = "";
+  }
+</script>
+</body>
+</html>
