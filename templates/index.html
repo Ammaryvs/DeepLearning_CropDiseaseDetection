@@ -11,18 +11,21 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:        #0c0c0c;
-      --surface:   #161616;
-      --border:    #262626;
-      --border-hi: #3a3a3a;
-      --text:      #f0ece4;
-      --text-2:    #a09a90;
-      --text-3:    #5c5650;
-      --accent:    #c8b89a;
-      --accent-hi: #e0cfb4;
-      --healthy:   #6b9e78;
-      --disease:   #c0634a;
-      --radius:    12px;
+      --bg:           #f3f1ea;
+      --surface:      #ffffff;
+      --border:       #e3dfd2;
+      --border-hi:    #c8c2af;
+      --text:         #1c1c1a;
+      --text-2:       #5b5b54;
+      --text-3:       #8a8579;
+      --green-deep:   #2e3d1c;
+      --green-mid:    #3f5524;
+      --green-eyebrow:#9bb874;
+      --green-soft:   #eef2e4;
+      --healthy:      #3f5524;
+      --disease:      #b54a2c;
+      --radius:       18px;
+      --radius-sm:    12px;
     }
 
     html { font-size: 16px; }
@@ -39,127 +42,136 @@
 
     /* ── Nav ── */
     nav {
+      max-width: 1120px;
+      width: 100%;
+      margin: 0 auto;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 24px 48px;
-      border-bottom: 1px solid var(--border);
+      padding: 22px 32px;
     }
 
     .nav-logo {
       font-family: "DM Serif Display", Georgia, serif;
-      font-size: 1.25rem;
-      letter-spacing: 0.02em;
-      color: var(--text);
+      font-size: 1.4rem;
+      letter-spacing: 0.01em;
+      color: var(--green-deep);
     }
 
-    .nav-logo span { color: var(--accent); font-style: italic; }
+    .nav-logo span { color: var(--green-mid); font-style: italic; }
 
     .nav-tag {
-      font-size: 0.72rem;
-      font-weight: 500;
-      letter-spacing: 0.12em;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: var(--text-3);
-      border: 1px solid var(--border);
-      padding: 5px 12px;
+      color: var(--green-mid);
+      background: var(--green-soft);
+      padding: 8px 14px;
       border-radius: 99px;
+    }
+
+    /* ── Page container ── */
+    .page {
+      flex: 1;
+      max-width: 1120px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 8px 32px 56px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
     }
 
     /* ── Hero ── */
     .hero {
-      text-align: center;
-      padding: 80px 24px 64px;
-      max-width: 640px;
-      margin: 0 auto;
+      background: var(--green-deep);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 60px 48px;
+      box-shadow: 0 1px 3px rgba(46,61,28,0.06), 0 12px 28px -14px rgba(46,61,28,0.18);
     }
 
     .hero-eyebrow {
       font-size: 0.72rem;
-      font-weight: 500;
-      letter-spacing: 0.16em;
+      font-weight: 600;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 20px;
+      color: var(--green-eyebrow);
+      margin-bottom: 18px;
     }
 
     .hero h1 {
       font-family: "DM Serif Display", Georgia, serif;
       font-size: clamp(2.4rem, 5vw, 3.6rem);
-      line-height: 1.1;
+      line-height: 1.05;
       letter-spacing: -0.01em;
-      color: var(--text);
-      margin-bottom: 20px;
+      color: #ffffff;
+      margin-bottom: 18px;
     }
 
     .hero h1 em {
       font-style: italic;
-      color: var(--accent);
+      color: var(--green-eyebrow);
     }
 
     .hero p {
       font-size: 1.05rem;
       font-weight: 300;
       line-height: 1.7;
-      color: var(--text-2);
+      color: #d9d6ca;
+      max-width: 640px;
     }
 
-    /* ── Main layout ── */
-    .main {
-      flex: 1;
+    /* ── Grid ── */
+    .grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 0;
-      max-width: 1100px;
-      width: 100%;
-      margin: 0 auto;
-      padding: 0 48px 80px;
+      gap: 20px;
+      align-items: stretch;
     }
 
-    @media (max-width: 760px) {
-      nav { padding: 20px 24px; }
-      .main { grid-template-columns: 1fr; padding: 0 24px 60px; }
+    @media (max-width: 880px) {
+      nav { padding: 18px 22px; }
+      .page { padding: 4px 20px 40px; gap: 16px; }
+      .hero { padding: 36px 26px; }
+      .grid { grid-template-columns: 1fr; }
     }
 
-    /* ── Panel ── */
-    .panel {
-      padding: 40px 40px 40px 0;
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 1px 2px rgba(40,40,30,0.04), 0 10px 24px -16px rgba(40,40,30,0.14);
     }
 
-    .panel + .panel {
-      padding: 40px 0 40px 40px;
-      border-left: 1px solid var(--border);
-    }
-
-    @media (max-width: 760px) {
-      .panel { padding: 32px 0; }
-      .panel + .panel { padding: 32px 0; border-left: none; border-top: 1px solid var(--border); }
-    }
-
-    .panel-label {
+    .card-label {
       font-size: 0.7rem;
-      font-weight: 500;
-      letter-spacing: 0.14em;
+      font-weight: 600;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: var(--text-3);
-      margin-bottom: 24px;
+      color: var(--green-mid);
+      margin-bottom: 22px;
     }
 
     /* ── Drop zone ── */
     #drop-zone {
-      border: 1px dashed var(--border-hi);
-      border-radius: var(--radius);
-      padding: 56px 32px;
+      border: 1.5px dashed var(--border-hi);
+      border-radius: var(--radius-sm);
+      padding: 48px 28px;
       text-align: center;
       cursor: pointer;
       transition: border-color 0.2s, background 0.2s;
       position: relative;
-      background: transparent;
+      background: #fafaf5;
     }
 
     #drop-zone:hover, #drop-zone.drag-over {
-      border-color: var(--accent);
-      background: rgba(200,184,154,0.04);
+      border-color: var(--green-mid);
+      background: var(--green-soft);
     }
 
     #drop-zone input[type="file"] {
@@ -172,10 +184,10 @@
     }
 
     .dz-icon {
-      width: 40px;
-      height: 40px;
-      margin: 0 auto 16px;
-      color: var(--text-3);
+      width: 38px;
+      height: 38px;
+      margin: 0 auto 14px;
+      color: var(--green-mid);
     }
 
     .dz-primary {
@@ -184,10 +196,10 @@
       line-height: 1.5;
     }
 
-    .dz-primary strong { color: var(--accent-hi); font-weight: 500; }
+    .dz-primary strong { color: var(--green-deep); font-weight: 600; }
 
     .dz-hint {
-      margin-top: 8px;
+      margin-top: 6px;
       font-size: 0.78rem;
       color: var(--text-3);
     }
@@ -195,14 +207,14 @@
     /* ── Preview ── */
     #preview-wrap {
       display: none;
-      margin-top: 20px;
+      margin-top: 18px;
     }
 
     #preview-img {
       width: 100%;
-      max-height: 260px;
+      max-height: 240px;
       object-fit: cover;
-      border-radius: var(--radius);
+      border-radius: var(--radius-sm);
       display: block;
     }
 
@@ -219,37 +231,37 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 200px;
+      max-width: 220px;
     }
 
     /* ── Actions ── */
     .actions {
       display: flex;
       gap: 10px;
-      margin-top: 20px;
+      margin-top: 18px;
     }
 
     .btn {
       flex: 1;
       padding: 13px 20px;
-      border-radius: var(--radius);
+      border-radius: var(--radius-sm);
       font-family: inherit;
       font-size: 0.88rem;
-      font-weight: 500;
+      font-weight: 600;
       letter-spacing: 0.02em;
       cursor: pointer;
       border: none;
       transition: opacity 0.15s, background 0.15s;
     }
 
-    .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     .btn-primary {
-      background: var(--accent);
-      color: #0c0c0c;
+      background: var(--green-deep);
+      color: #fff;
     }
 
-    .btn-primary:not(:disabled):hover { background: var(--accent-hi); }
+    .btn-primary:not(:disabled):hover { background: var(--green-mid); }
 
     .btn-ghost {
       background: transparent;
@@ -266,9 +278,9 @@
     .specs {
       display: flex;
       gap: 0;
-      margin-top: 28px;
+      margin-top: 22px;
       border: 1px solid var(--border);
-      border-radius: var(--radius);
+      border-radius: var(--radius-sm);
       overflow: hidden;
     }
 
@@ -284,29 +296,31 @@
     .spec-val {
       font-family: "DM Serif Display", serif;
       font-size: 1.3rem;
-      color: var(--text);
+      color: var(--green-deep);
     }
 
     .spec-key {
-      font-size: 0.68rem;
-      font-weight: 500;
-      letter-spacing: 0.1em;
+      font-size: 0.66rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
       color: var(--text-3);
       margin-top: 3px;
     }
 
-    /* ── Right panel: results ── */
+    /* ── Right card: results ── */
     #state-idle, #state-loading, #state-results, #state-error {
       display: none;
     }
 
-    #state-idle { display: block; }
+    #state-idle { display: flex; flex: 1; flex-direction: column; }
 
     .idle-illustration {
-      height: 220px;
-      border: 1px dashed var(--border);
-      border-radius: var(--radius);
+      flex: 1;
+      min-height: 260px;
+      border: 1.5px dashed var(--border-hi);
+      border-radius: var(--radius-sm);
+      background: #fafaf5;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -315,7 +329,7 @@
       color: var(--text-3);
     }
 
-    .idle-illustration svg { width: 36px; height: 36px; }
+    .idle-illustration svg { width: 36px; height: 36px; color: var(--green-mid); }
 
     .idle-illustration p {
       font-size: 0.85rem;
@@ -337,7 +351,7 @@
       width: 36px;
       height: 36px;
       border: 2px solid var(--border);
-      border-top-color: var(--accent);
+      border-top-color: var(--green-mid);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
@@ -354,10 +368,10 @@
     #state-error {
       flex-direction: column;
       gap: 8px;
-      padding: 24px;
-      background: rgba(192,99,74,0.08);
-      border: 1px solid rgba(192,99,74,0.3);
-      border-radius: var(--radius);
+      padding: 22px;
+      background: rgba(181,74,44,0.08);
+      border: 1px solid rgba(181,74,44,0.25);
+      border-radius: var(--radius-sm);
     }
 
     #state-error strong { font-size: 0.85rem; color: var(--disease); }
@@ -367,10 +381,9 @@
     #state-results { flex-direction: column; gap: 0; }
 
     .result-top {
-      padding: 28px;
-      background: var(--surface);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
+      padding: 26px;
+      background: var(--green-soft);
+      border-radius: var(--radius-sm);
       margin-bottom: 16px;
       position: relative;
       overflow: hidden;
@@ -379,33 +392,34 @@
     .result-top::before {
       content: "";
       position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 3px;
+      top: 0; left: 0; bottom: 0;
+      width: 4px;
       background: var(--healthy);
     }
 
+    .result-top.diseased { background: rgba(181,74,44,0.07); }
     .result-top.diseased::before { background: var(--disease); }
 
     .result-status {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-size: 0.72rem;
-      font-weight: 500;
-      letter-spacing: 0.12em;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
       padding: 5px 10px;
       border-radius: 4px;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
 
     .result-status.healthy-badge {
-      background: rgba(107,158,120,0.15);
+      background: rgba(63,85,36,0.14);
       color: var(--healthy);
     }
 
     .result-status.disease-badge {
-      background: rgba(192,99,74,0.15);
+      background: rgba(181,74,44,0.14);
       color: var(--disease);
     }
 
@@ -419,18 +433,19 @@
       font-family: "DM Serif Display", serif;
       font-size: 1.9rem;
       line-height: 1.15;
-      color: var(--text);
+      color: var(--green-deep);
     }
 
     .result-disease {
-      margin-top: 6px;
-      font-size: 0.92rem;
-      font-weight: 300;
-      color: var(--text-2);
+      margin-top: 8px;
+      font-size: 1.3rem;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: -0.005em;
     }
 
     .result-conf {
-      margin-top: 18px;
+      margin-top: 16px;
       display: flex;
       align-items: baseline;
       gap: 6px;
@@ -438,24 +453,24 @@
 
     .conf-number {
       font-family: "DM Serif Display", serif;
-      font-size: 2.8rem;
-      color: var(--text);
+      font-size: 2.6rem;
+      color: var(--green-deep);
       line-height: 1;
     }
 
     .conf-unit {
       font-size: 0.85rem;
       color: var(--text-3);
-      font-weight: 300;
+      font-weight: 400;
     }
 
     /* Other predictions */
     .others-head {
       font-size: 0.7rem;
-      font-weight: 500;
-      letter-spacing: 0.12em;
+      font-weight: 600;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
-      color: var(--text-3);
+      color: var(--green-mid);
       margin-bottom: 12px;
     }
 
@@ -472,9 +487,9 @@
     .pred-info { flex: 1; min-width: 0; }
 
     .pred-plant {
-      font-size: 0.85rem;
+      font-size: 0.88rem;
       color: var(--text);
-      font-weight: 500;
+      font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -490,7 +505,7 @@
 
     .pred-bar-wrap {
       flex: 0 0 80px;
-      height: 3px;
+      height: 4px;
       background: var(--border);
       border-radius: 2px;
       overflow: hidden;
@@ -503,11 +518,11 @@
       transition: width 0.5s ease;
     }
 
-    .pred-bar-fill.h { background: var(--healthy); opacity: 0.5; }
-    .pred-bar-fill.d { background: var(--disease); opacity: 0.5; }
+    .pred-bar-fill.h { background: var(--healthy); opacity: 0.7; }
+    .pred-bar-fill.d { background: var(--disease); opacity: 0.7; }
 
     .pred-pct {
-      flex: 0 0 44px;
+      flex: 0 0 48px;
       text-align: right;
       font-size: 0.8rem;
       color: var(--text-3);
@@ -516,8 +531,11 @@
 
     /* ── Footer ── */
     footer {
+      max-width: 1120px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 20px 32px 28px;
       border-top: 1px solid var(--border);
-      padding: 24px 48px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -530,7 +548,7 @@
     }
 
     @media (max-width: 760px) {
-      footer { flex-direction: column; text-align: center; padding: 24px; }
+      footer { flex-direction: column; text-align: center; padding: 22px; gap: 8px; }
     }
   </style>
 </head>
@@ -542,91 +560,96 @@
   <div class="nav-tag">MobileNetV2 &nbsp;·&nbsp; 38 Classes</div>
 </nav>
 
-<!-- Hero -->
-<div class="hero">
-  <p class="hero-eyebrow">Crop Disease Detection</p>
-  <h1>Diagnose your <em>crop</em> in seconds</h1>
-  <p>Upload a leaf photograph and our model — trained on 54,000 images across 14 crops — returns a diagnosis with confidence score.</p>
-</div>
+<!-- Page -->
+<div class="page">
 
-<!-- Main -->
-<div class="main">
-
-  <!-- Left: Upload -->
-  <div class="panel">
-    <p class="panel-label">Upload Image</p>
-
-    <div id="drop-zone">
-      <input type="file" id="file-input" accept="image/*" />
-      <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-        <polyline points="17 8 12 3 7 8"/>
-        <line x1="12" y1="3" x2="12" y2="15"/>
-      </svg>
-      <p class="dz-primary"><strong>Choose a file</strong> or drag it here</p>
-      <p class="dz-hint">JPEG, PNG, WEBP — up to 10 MB</p>
-    </div>
-
-    <div id="preview-wrap">
-      <img id="preview-img" src="" alt="Selected leaf" />
-      <div class="preview-meta">
-        <span class="preview-name" id="preview-name"></span>
-      </div>
-    </div>
-
-    <div class="actions">
-      <button class="btn btn-primary" id="classify-btn" disabled>Analyse</button>
-      <button class="btn btn-ghost" id="clear-btn" disabled>Clear</button>
-    </div>
-
-    <div class="specs">
-      <div class="spec-item">
-        <div class="spec-val">99.8%</div>
-        <div class="spec-key">Test Acc.</div>
-      </div>
-      <div class="spec-item">
-        <div class="spec-val">38</div>
-        <div class="spec-key">Classes</div>
-      </div>
-      <div class="spec-item">
-        <div class="spec-val">54k</div>
-        <div class="spec-key">Images</div>
-      </div>
-      <div class="spec-item">
-        <div class="spec-val">14</div>
-        <div class="spec-key">Crops</div>
-      </div>
-    </div>
+  <!-- Hero -->
+  <div class="hero">
+    <p class="hero-eyebrow">Crop Disease Detection</p>
+    <h1>Diagnose your <em>crop</em> in seconds</h1>
+    <p>Upload a leaf photograph and our model. Trained on 54,000 images across 14 crops, the model returns a diagnosis with confidence score.</p>
   </div>
 
-  <!-- Right: Results -->
-  <div class="panel">
-    <p class="panel-label">Diagnosis</p>
+  <!-- Upload + Results -->
+  <div class="grid">
 
-    <div id="state-idle">
-      <div class="idle-illustration">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    <!-- Upload card -->
+    <div class="card">
+      <p class="card-label">Upload Image</p>
+
+      <div id="drop-zone">
+        <input type="file" id="file-input" accept="image/*" />
+        <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
-        <p>Upload a leaf image<br />to receive a diagnosis</p>
+        <p class="dz-primary"><strong>Choose a file</strong> or drag it here</p>
+        <p class="dz-hint">JPEG, PNG, WEBP — up to 10 MB</p>
+      </div>
+
+      <div id="preview-wrap">
+        <img id="preview-img" src="" alt="Selected leaf" />
+        <div class="preview-meta">
+          <span class="preview-name" id="preview-name"></span>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="classify-btn" disabled>Analyse</button>
+        <button class="btn btn-ghost" id="clear-btn" disabled>Clear</button>
+      </div>
+
+      <div class="specs">
+        <div class="spec-item">
+          <div class="spec-val">99.8%</div>
+          <div class="spec-key">Test Acc.</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-val">38</div>
+          <div class="spec-key">Classes</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-val">54k</div>
+          <div class="spec-key">Images</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-val">14</div>
+          <div class="spec-key">Crops</div>
+        </div>
       </div>
     </div>
 
-    <div id="state-loading">
-      <div class="loader"></div>
-      <p class="loader-text">Analysing image&hellip;</p>
-    </div>
+    <!-- Results card -->
+    <div class="card">
+      <p class="card-label">Diagnosis</p>
 
-    <div id="state-error">
-      <strong>Something went wrong</strong>
-      <span id="error-text"></span>
-    </div>
+      <div id="state-idle">
+        <div class="idle-illustration">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <p>Upload a leaf image<br />to receive a diagnosis</p>
+        </div>
+      </div>
 
-    <div id="state-results">
-      <!-- injected by JS -->
-    </div>
+      <div id="state-loading">
+        <div class="loader"></div>
+        <p class="loader-text">Analysing image&hellip;</p>
+      </div>
 
+      <div id="state-error">
+        <strong>Something went wrong</strong>
+        <span id="error-text"></span>
+      </div>
+
+      <div id="state-results">
+        <!-- injected by JS -->
+      </div>
+
+    </div>
   </div>
+
 </div>
 
 <!-- Footer -->
