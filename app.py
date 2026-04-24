@@ -1,15 +1,11 @@
 import json
-import sys
+import numpy as np
+from io import BytesIO
 from pathlib import Path
 
-import torch
+import onnxruntime as ort
 from flask import Flask, jsonify, render_template, request
 from PIL import Image
-from torchvision import transforms
-
-# Import the same wrapper class the checkpoint was saved from
-sys.path.insert(0, str(Path(__file__).parent))
-from src.models.mobilenetv2.model import MobileNetV2Classifier
 
 app = Flask(__name__)
 
@@ -20,30 +16,40 @@ with open(BUNDLE_DIR / "class_labels.json") as f:
     _labels = json.load(f)
 
 IDX_TO_LABEL: list[str] = _labels["idx_to_label"]
-NUM_CLASSES: int = _labels["num_classes"]
 
-model = MobileNetV2Classifier(num_classes=NUM_CLASSES, pretrained=False, dropout=0.1)
-state = torch.load(BUNDLE_DIR / "best_model.pth", map_location="cpu", weights_only=True)
-model.load_state_dict(state)
-model.eval()
+_session = None
 
-preprocess = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-])
+
+def get_session() -> ort.InferenceSession:
+    global _session
+    if _session is None:
+        _session = ort.InferenceSession(str(BUNDLE_DIR / "model.onnx"))
+    return _session
+
+
+def preprocess(img: Image.Image) -> np.ndarray:
+    img = img.resize((224, 224))
+    x = np.array(img, dtype=np.float32) / 255.0
+    mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+    std  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+    x = (x - mean) / std
+    x = x.transpose(2, 0, 1)   # HWC -> CHW
+    return x[np.newaxis]        # add batch dim
+
+
+def softmax(x: np.ndarray) -> np.ndarray:
+    e = np.exp(x - x.max())
+    return e / e.sum()
 
 
 def parse_label(raw: str) -> dict:
-    """Split 'Plant___Disease' into human-readable parts."""
     if "___" in raw:
         plant, disease = raw.split("___", 1)
     else:
         plant, disease = raw, ""
-    plant = plant.replace("_", " ").replace(",", ",")
+    plant   = plant.replace("_", " ")
     disease = disease.replace("_", " ")
-    is_healthy = "healthy" in disease.lower()
-    return {"plant": plant, "disease": disease, "healthy": is_healthy}
+    return {"plant": plant, "disease": disease, "healthy": "healthy" in disease.lower()}
 
 
 @app.route("/")
@@ -65,28 +71,25 @@ def predict():
         return jsonify({"error": "Image too large (max 10 MB)"}), 413
 
     try:
-        from io import BytesIO
         img = Image.open(BytesIO(data)).convert("RGB")
     except Exception:
         return jsonify({"error": "Cannot read image"}), 400
 
-    x = preprocess(img).unsqueeze(0)
-
-    with torch.no_grad():
-        logits = model(x)
-        probs = torch.softmax(logits, dim=1)[0]
-        top5 = torch.topk(probs, k=5)
+    x      = preprocess(img)
+    logits = get_session().run(None, {"input": x})[0][0]
+    probs  = softmax(logits)
+    top5   = probs.argsort()[::-1][:5]
 
     results = []
-    for score, idx in zip(top5.values.tolist(), top5.indices.tolist()):
-        raw = IDX_TO_LABEL[idx]
+    for idx in top5:
+        raw    = IDX_TO_LABEL[idx]
         parsed = parse_label(raw)
         results.append({
-            "label": raw,
-            "plant": parsed["plant"],
-            "disease": parsed["disease"],
-            "healthy": parsed["healthy"],
-            "confidence": round(score * 100, 2),
+            "label":      raw,
+            "plant":      parsed["plant"],
+            "disease":    parsed["disease"],
+            "healthy":    parsed["healthy"],
+            "confidence": round(float(probs[idx]) * 100, 2),
         })
 
     return jsonify({"predictions": results})
